@@ -1,6 +1,5 @@
-#include <Arduino.h>
-#include <Stepper.h>
-#include <LiquidCrystal.h> 
+// include the library code:
+#include <LiquidCrystal.h>
 
 // Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
 #define MOTOR_STEPS 200
@@ -16,7 +15,6 @@
 
 #include "A4988.h"
 A4988 stepper(MOTOR_STEPS, DIR, STEP);
-LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 
 // Current position (measured from origin)
 double current = 182; // !!! remeasure width to make sure values are correct 
@@ -32,47 +30,61 @@ double length = 364; // this is in mm (can convert to 36.4 based on Enrique's co
 // New position to move to (measured from origin)
 double goal = 0;
 
-void setup() {
-  stepper.begin(RPM, MICROSTEPS);
-  // if using enable/disable on ENABLE pin (active LOW) instead of SLEEP uncomment next line
-  // stepper.setEnableActiveState(LOW);
-  stepper.enable();
-  stepper.setSpeedProfile(stepper.LINEAR_SPEED, MOTOR_ACCEL, MOTOR_DECEL);
-  // initialize the serial port:
-  Serial.begin(9600);
+// initialize the library by associating any needed LCD interface pin
+// with the arduino pin number it is connected to
+const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 
-  lcd.begin(16, 2);            // set the lcd type: 16-character by 2-lines
+void setup() {
+  // set up the LCD's number of columns and rows:
+  lcd.begin(16, 2);
   lcd.print("Hi");
+  // initialize the serial communications:
+  Serial.begin(9600);
 }
 
 void loop() {
-
-  if (Serial.available() > 0){
-
-    double goal = Serial.readStringUntil('\n').toDouble();
+  // when characters arrive over the serial port...
+  if (Serial.available()>0) {
+    // wait a bit for the entire message to arrive
+    delay(100);
+    // clear the screen
+    lcd.clear();
+    // read all the available characters
+    char c = "";
+    String longer = "";
+    while (Serial.available() > 0) {
+      // display each character to the LCD
+      c = Serial.read();
+      if(c != '\n'){
+        lcd.write(c);
+        longer += c;
+      }
+    }
 
     Serial.print("RECIEVED: ");
-    Serial.println(goal);
+    Serial.println(longer);
+    double goal = longer.toDouble();
     
-    // Net distance to move 
     double dist = abs(current-goal);
 
+    // Serial.print("a");
     if (MIN <= goal && goal <= MAX){
+      // Serial.print("b");
       if (current < goal){
         stepper.move(-(dist*(double(STEPS)/length))); // !!!want to remeasure width
         current += dist;
+        // Serial.print("c");
       } else if (current > goal){
         stepper.move((dist*(double(STEPS)/length)));
         current -= dist;
+        // Serial.print("d");
       } else {
         stepper.move(0);
+        // Serial.print("e");
       }
+      // Serial.print("f");
     }
-    lcd.clear();
-    // read all the available characters
-    while (Serial.available() > 0) {
-      // display each character to the LCD
-      lcd.write(Serial.read());
-    }
+    // Serial.print("g");
   }
 }
