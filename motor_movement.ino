@@ -1,11 +1,20 @@
-
+#include <Arduino.h>
 #include <Stepper.h>
 
-// Number of steps per output rotation
-const int stepsPerRevolution = 200;
+// Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
+#define MOTOR_STEPS 200
+// Target RPM for cruise speed
+#define RPM 1300
+// Acceleration and deceleration values are always in FULL steps / s^2
+#define MOTOR_ACCEL 16000
+#define MOTOR_DECEL 16000
+// Microstepping mode. If you hardwired it to save pins, set to the same value here.
+#define MICROSTEPS 1
+#define DIR 8
+#define STEP 9
 
-// Create Instance of Stepper library
-Stepper myStepper(stepsPerRevolution, 8, 9, 10, 11);
+#include "A4988.h"
+A4988 stepper(MOTOR_STEPS, DIR, STEP);
 
 // Current position (measured from origin)
 double current = 182; // !!! remeasure width to make sure values are correct 
@@ -22,8 +31,11 @@ double length = 364; // this is in mm (can convert to 36.4 based on Enrique's co
 double goal = 0;
 
 void setup() {
-  // set the speed at 300 rpm:
-  myStepper.setSpeed(300);
+  stepper.begin(RPM, MICROSTEPS);
+  // if using enable/disable on ENABLE pin (active LOW) instead of SLEEP uncomment next line
+  // stepper.setEnableActiveState(LOW);
+  stepper.enable();
+  stepper.setSpeedProfile(stepper.LINEAR_SPEED, MOTOR_ACCEL, MOTOR_DECEL);
   // initialize the serial port:
   Serial.begin(9600);
   
@@ -42,13 +54,13 @@ void loop() {
 
     if (MIN <= goal && goal <= MAX){
       if (current < goal){
-        myStepper.step(-(dist*(double(STEPS)/length))); // !!!want to remeasure width
+        stepper.move(-(dist*(double(STEPS)/length))); // !!!want to remeasure width
         current += dist;
       } else if (current > goal){
-        myStepper.step((dist*(double(STEPS)/length)));
+        stepper.move((dist*(double(STEPS)/length)));
         current -= dist;
       } else {
-        myStepper.step(0);
+        stepper.move(0);
       }
     }
   }
