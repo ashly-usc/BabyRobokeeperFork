@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Stepper.h>
+#include <LiquidCrystal.h> 
 
 // Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
 #define MOTOR_STEPS 200
@@ -15,6 +16,7 @@
 
 #include "A4988.h"
 A4988 stepper(MOTOR_STEPS, DIR, STEP);
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 
 // Current position (measured from origin)
 double current = 182; // !!! remeasure width to make sure values are correct 
@@ -38,10 +40,13 @@ void setup() {
   stepper.setSpeedProfile(stepper.LINEAR_SPEED, MOTOR_ACCEL, MOTOR_DECEL);
   // initialize the serial port:
   Serial.begin(9600);
-  
+
+  lcd.begin(16, 2);            // set the lcd type: 16-character by 2-lines
+  lcd.print("Hi");
 }
 
 void loop() {
+
   if (Serial.available() > 0){
 
     double goal = Serial.readStringUntil('\n').toDouble();
@@ -62,6 +67,12 @@ void loop() {
       } else {
         stepper.move(0);
       }
+    }
+    lcd.clear();
+    // read all the available characters
+    while (Serial.available() > 0) {
+      // display each character to the LCD
+      lcd.write(Serial.read());
     }
   }
 }
