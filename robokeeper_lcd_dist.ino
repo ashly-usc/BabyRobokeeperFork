@@ -1,58 +1,102 @@
-//Include the LiquidCrystal header file which is inside the Arduino IDE
-#include <LiquidCrystal.h> 
+#include <Arduino.h>
+#include <Stepper.h>
+#include <LiquidCrystal.h>
 
-/* ==== PINS ASSIGNMNET ==========
- * LCD RS pin to digital pin 8
- * LCD EN pin to digital pin 9
- * LCD D4 pin to digital pin 4
- * LCD D5 pin to digital pin 5
- * LCD D6 pin to digital pin 6
- * LCD D7 pin to digital pin 7
- * Backlight PWM control to Pin 10
- * LCD R/W pin to ground
-*/
+// Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
+#define MOTOR_STEPS 200
+// Target RPM for cruise speed
+#define RPM 1300
+// Acceleration and deceleration values are always in FULL steps / s^2
+#define MOTOR_ACCEL 16000
+#define MOTOR_DECEL 16000
+// Microstepping mode. If you hardwired it to save pins, set to the same value here.
+#define MICROSTEPS 1
+#define DIR 5
+#define STEP 6
 
-// Set the I/O pin for LCD 4-bit mode following the library assignment: 
-//  LiquidCrystal(rs, en, d4, d5, d6, d7).
+#include "A4988.h"
+A4988 stepper(MOTOR_STEPS, DIR, STEP);
+
+// Current position (measured from origin)
+double current = 182; // !!! remeasure width to make sure values are correct 
+
+// Boundaries of the linear gantry
+double MAX = 181; //!!! what is the max positive x-coord (ask enrique)
+double MIN = -181;
+
+// Calibration:
+double STEPS = 1224; // # steps to move across table
+double length = 364; // this is in mm (can convert to 36.4 based on Enrique's code)
+
+// New position to move to (measured from origin)
+double goal = 0;
+
+double dist = 0;
+
+// initialize the library by associating any needed LCD interface pin
+// with the arduino pin number it is connected to
+const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 
-int analogPin = A0;  //Define the A0 as analogPin as integer type.
-int adc_key_old;
-int adc_key_in;
-int NUM_KEYS = 5;
-int key=-1;
-int adc_key_val[5] ={30, 150, 360, 535, 760 }; //Define the value at A0 pin 
-                                               // when a key is pressed.
-                    
-                    
-// The setup() method runs once, when the sketch starts
-void setup ()
-{
-  Serial.begin(9600); // open a serial connection to display values
-  lcd.begin(16, 2);            // set the lcd type: 16-character by 2-lines
-  //lcd.clear();                        // LCD screen clear
-  lcd.print("Hi");      // Send the ASCII code to the LCD for 
-                                      // displaying the message
-
-  // pinMode(10, OUTPUT);                // sets backlight pin-10 as PWM output
-  // analogWrite(10, 125);               // Set backlight to 50% brightness 
-    
-  // lcd.setCursor(0,1);           // set the position of next message string: 
-                                // 1st position at 2nd line
+void setup() {
+  // set up the LCD's number of columns and rows:
+  lcd.begin(16, 2);
+  lcd.print("Hi");
+  // initialize the serial communications:
+  Serial.begin(9600);
   
+  stepper.begin(RPM, MICROSTEPS);
+  // if using enable/disable on ENABLE pin (active LOW) instead of SLEEP uncomment next line
+  // stepper.setEnableActiveState(LOW);
+  stepper.enable();
+  stepper.setSpeedProfile(stepper.LINEAR_SPEED, MOTOR_ACCEL, MOTOR_DECEL);
+  // initialize the serial port:
+  delay(100);
 }
 
-void loop()
-{
-  if (Serial.available()) {
+void loop() {
+  // when characters arrive over the serial port...
+  if (Serial.available()>0) {
+    
     // wait a bit for the entire message to arrive
     delay(100);
     // clear the screen
     lcd.clear();
     // read all the available characters
+    char c = "";
+    String longer = "";
     while (Serial.available() > 0) {
       // display each character to the LCD
-      lcd.write(Serial.read());
+      c = Serial.read();
+      if(c != '\n'){
+        lcd.write(c);
+        longer += c;
+      }
     }
+
+    Serial.print("RECIEVED: ");
+    Serial.println(longer);
+    double goal = longer.toDouble();
+    
+    dist = abs(current-goal);
+
+    // Serial.print("a");
+    if (MIN <= goal && goal <= MAX){
+      // Serial.print("b");
+      if (current < goal){
+        stepper.move(-(dist*(double(STEPS)/length))); // !!!want to remeasure width
+        current += dist;
+        // Serial.print("c");
+      } else if (current > goal){
+        stepper.move((dist*(double(STEPS)/length)));
+        current -= dist;
+        // Serial.print("d");
+      } else {
+        stepper.move(0);
+        // Serial.print("e");
+      }
+      // Serial.print("f");
+    }
+    // Serial.print("g");
   }
 }
